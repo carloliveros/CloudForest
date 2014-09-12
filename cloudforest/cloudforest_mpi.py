@@ -158,11 +158,11 @@ def genetree_worker(params):
 def bootstrap_worker(params):
     """Worker function to compute boostrap replicates of datasets and indiv. loci"""
     bootstrap_trees = []
-    rep, fullpth, oneliners = params
+    rep, fullpth, oneliners, output = params
     pth, exe = os.path.split(fullpth)
     # first, resample w/ replacement/bootstrap across loci
     multilocus_bstrap = get_bootstraps(oneliners)
-    # Resample w/ replacement/boostrap bases within loci
+    # Resample w/ replacement/bootstrap bases within loci
     bootstraps = get_bootstrap_replicates(multilocus_bstrap)
     for oneliner in bootstraps:
         args_dict, locus = split_oneliner(oneliner, default_model=True)
@@ -173,12 +173,16 @@ def bootstrap_worker(params):
         args_dict['lnL'], tree = phyml.run(args_dict['model'])
         #bootstrap_trees.append("tree '%s' = [&U] %s" % (make_tree_name(args_dict), tree))
         bootstrap_trees.append('''%s\t"%s"''' % (rep, tree))
+    # write
+    outname = "bootrep%d.tre" % (rep)
+    outf = open(os.path.join(output, outname), 'w')
+    for tree in bootstrap_trees:
+        outf.write("%s\n" % (tree))
     sys.stdout.write("[Info] {0} bootstrap completed\n".format(
             strftime("%a, %d %b %Y %H:%M:%S", localtime())
         )
     )
     sys.stdout.flush()
-    return bootstrap_trees
 
 
 def boostrap_all_loci(args, models, alns):
@@ -187,14 +191,8 @@ def boostrap_all_loci(args, models, alns):
                 for locus, phylip in alns.iteritems()]
     # for every rep in boostraps, map loci onto worker that will
     # bootstrap, run phyml, and return bootstrap trees
-    params = generate_bootreps(args.bootreps, args.phyml, oneliners)
-    bootreps = mmap(bootstrap_worker, params)
-    # write
-    outname = "%s-bootreps.tree" % (args.bootreps)
-    outf = open(os.path.join(args.output, outname), 'w')
-    for bootrep in bootreps:
-        for tree in bootrep:
-            outf.write("%s\n" % (tree))
+    params = generate_bootreps(args.bootreps, args.phyml, oneliners, args.output)
+    mmap(bootstrap_worker, params)
 
 
 def main():
